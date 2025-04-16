@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Boop Game</title>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/brython@3.9.5/brython.min.js"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/brython@3.9.5/brython_stdlib.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 700px; margin: auto; padding: 2em; }
+    canvas { border: 1px solid black; display: block; margin: 1em auto; }
+    .options { margin-top: 1em; }
+    .inventory { display: flex; justify-content: space-between; margin-top: 1em; }
+    .inventory div { display: flex; flex-direction: column; align-items: center; }
+    .inventory img { margin: 2px; }
+  </style>
+</head>
+<body onload="brython()">
+  <h1>Boop Game</h1>
+
+  <label for="server-url">Server URL:</label>
+  <input type="text" id="server-url" value="http://localhost:8001">
+  <button id="start-game">Start New Game</button>
+
+  <p id="status">Click "Start New Game" to begin</p>
+  <div class="options">
+    <label>Player 0:
+      <select id="player-0-type">
+        <option value="human">Human</option>
+        <option value="ai">AI</option>
+      </select>
+    </label>
+    <br>
+    <label>Player 1:
+      <select id="player-1-type">
+        <option value="human">Human</option>
+        <option value="ai">AI</option>
+      </select>
+    </label>
+    <br>
+    <label>Piece:
+      <select id="piece-type">
+        <option value="0">Kitten</option>
+        <option value="1">Cat</option>
+      </select>
+    </label>
+  </div>
+
+  <canvas id="game-canvas" width="360" height="360"></canvas>
+
+  <div class="inventory" id="inventory-display">
+    <div>
+      <strong>Player 0</strong>
+      <div>Kittens: <span id="p0-kittens"></span></div>
+      <div>Cats: <span id="p0-cats"></span></div>
+    </div>
+    <div>
+      <strong>Player 1</strong>
+      <div>Kittens: <span id="p1-kittens"></span></div>
+      <div>Cats: <span id="p1-cats"></span></div>
+    </div>
+  </div>
+
+  <script type="text/python">
+from browser import document, ajax, window, html
+import json
+
+game_id = None
+state = {}
+
+kitten_a_img = window.Image.new(); kitten_a_img.src = "kitten_a.png"
+cat_a_img = window.Image.new(); cat_a_img.src = "cat_a.png"
+kitten_b_img = window.Image.new(); kitten_b_img.src = "kitten_b.png"
+cat_b_img = window.Image.new(); cat_b_img.src = "cat_b.png"
+
+def render_board():
+    board = state["board"]
+    canvas = document["game-canvas"]
+    ctx = canvas.getContext("2d")
+    cell_size = 60
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    for i in range(7):
+        ctx.beginPath()
+        ctx.moveTo(i * cell_size, 0)
+        ctx.lineTo(i * cell_size, canvas.height)
+        ctx.moveTo(0, i * cell_size)
+        ctx.lineTo(canvas.width, i * cell_size)
+        ctx.stroke()
+
+    for row in range(6):
+        for col in range(6):
+            x = col * cell_size
+            y = row * cell_size
+            cell = board[row][col]
+    
+            is_p0 = cell[0] == 1
+            is_p1 = cell[1] == 1
+            is_cat = cell[2] == 1
+    
+            if is_p0:
+                img = cat_a_img if is_cat else kitten_a_img
+                ctx.drawImage(img, x + 5, y + 5, cell_size - 10, cell_size - 10)
+            elif is_p1:
+                img = cat_b_img if is_cat else kitten_b_img
+                ctx.drawImage(img, x + 5, y + 5, cell_size - 10, cell_size - 10)
+
+    # inventory from state["stock"]
+    for i in range(2):
+        stock = state["stock"][str(i)]
+        kitten_span = document[f"p{i}-kittens"]
+        cat_span = document[f"p{i}-cats"]
+        kitten_span.clear(); cat_span.clear()
+        for _ in range(stock["kitten"]):
+            img = html.IMG(src="kitten_a.png" if i == 0 else "kitten_b.png", width=24, height=24)
+            kitten_span <= img
+        for _ in range(stock["cat"]):
+            img = html.IMG(src="cat_a.png" if i == 0 else "cat_b.png", width=24, height=24)
+            cat_span <= img
+
+def handle_start_response(req):
+    global game_id
+    global state
+    if req.status == 200:
+        result = json.loads(req.text)
+        game_id = result["game_id"]
+        state = result["state"]
+        render_board()
+    else:
+        document["status"].text = f"Start error: {req.text}"
+
+def handle_move_response(req):
+    global game_id
+    global state
+    if req.status == 200:
+        result = json.loads(req.text)
+        state = result["state"]
+        print(state['stock'])
+        document["status"].text = result["status"]
+        render_board()
+        if result.get("game_over"):
+            game_id = None
+    else:
+        document["status"].text = f"Move error: {req.status}"
+
+def start_game(ev):
+    global game_id
+    url = f"{document['server-url'].value}/api/games/boop/new"
+    req = ajax.ajax()
+    req.bind("complete", handle_start_response)
+    req.open("POST", url, True)
+    req.set_header("Content-Type", "application/json")
+    p0 = document["player-0-type"].value
+    p1 = document["player-1-type"].value
+    req.send(json.dumps({"players": [p0, p1]}))
+
+def send_move(ev):
+    if not game_id:
+        document["status"].text = "Game not started"
+        return
+
+    canvas = document["game-canvas"]
+    cell_size = 60
+    col = ev.offsetX // cell_size
+    row = ev.offsetY // cell_size
+    cell = state["board"][row][col]
+    current_player = state["current_player"]
+    piece_type = int(document["piece-type"].value)
+
+    selected = state["board"][row][col]
+
+    # Determine if it's a removal action on own piece
+    is_own_piece = (cell[0] == 1 and current_player == 0) or (cell[1] == 1 and current_player == 1)
+    if is_own_piece:
+        is_cat = cell[2] == 1
+        action_type = 1
+        piece_type = 1 if is_cat else 0
+    else:
+        action_type = 0  # normal place
+
+    action = [action_type, row, col, piece_type]
+
+    data = {"game_id": game_id, "action": action}
+    url = f"{document['server-url'].value}/api/games/boop/move"
+    req = ajax.ajax()
+    req.bind("complete", handle_move_response)
+    req.open("POST", url, True)
+    req.set_header("Content-Type", "application/json")
+    req.send(json.dumps(data))
+
+document["start-game"].bind("click", start_game)
+document["game-canvas"].bind("click", send_move)
+  </script>
+</body>
+</html>

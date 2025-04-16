@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Tic Tac Toe</title>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/brython@3.9.5/brython.min.js"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/brython@3.9.5/brython_stdlib.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: auto;
+      padding: 2em;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 60px);
+      gap: 10px;
+      margin-top: 1em;
+    }
+    .cell {
+      width: 60px;
+      height: 60px;
+      font-size: 24px;
+      text-align: center;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body onload="brython()">
+  <h1>Tic Tac Toe</h1>
+
+  <label for="server-url">Server URL:</label>
+  <input type="text" id="server-url" value="http://localhost:8000" />
+
+  <p id="status">Waiting for player move...</p>
+  <div id="board" class="board"></div>
+
+  <script type="text/python">
+from browser import document, html, ajax
+import json
+
+board = [0] * 9  # 0 = empty, 1 = player (X), 2 = AI (O)
+
+def render_board():
+    board_div = document["board"]
+    board_div.clear()
+    for i in range(9):
+        symbol = {0: "", 1: "X", 2: "O"}[board[i]]
+        btn = html.BUTTON(symbol, Class="cell")
+        btn.bind("click", lambda ev, idx=i: handle_click(idx))
+        board_div <= btn
+
+def handle_click(index):
+    if board[index] != 0:
+        return
+
+    board[index] = 1  # player move
+    document["status"].text = "AI thinking..."
+    render_board()
+
+    data = {
+        "board": board
+    }
+
+    game = "tictactoe"
+    url = f"{document['server-url'].value}/api/games/{game}/move"
+
+    req = ajax.ajax()
+    req.bind("complete", handle_response)
+    req.open("POST", url, True)
+    req.set_header("Content-Type", "application/json")
+    req.send(json.dumps(data))
+
+def handle_response(req):
+    if req.status == 200:
+        result = json.loads(req.text)
+        global board
+        board = result["board"]
+        document["status"].text = result["status"]
+        render_board()
+    else:
+        document["status"].text = f"Error: {req.status}"
+
+render_board()
+  </script>
+</body>
+</html>
