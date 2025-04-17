@@ -176,7 +176,6 @@ class BoopEnv(gym.Env):
                         self.board[r, c] = None
                         player.stock['cat'] += 1
 
-            reward = 0.0
             winning = self.find_three_in_a_row(self.current_player_num, only_cats=True)
             if winning:
                 return self.observation.astype(np.float32), 1.0, True, False, {"winning_positions": winning}

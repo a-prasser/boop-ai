@@ -28,7 +28,7 @@ games = {
     "tictactoe": {'env': None,
                   'model': "tictactoe_dqn" },
     "boop": {'env': BoopEnv,
-             'model': PPO.load("boop_ppo") } # DQN.load("boop_dqn") },
+             'model': PPO.load("ppo_boop_v3") } # DQN.load("boop_dqn") },
     }
 
 # === Session store ===
