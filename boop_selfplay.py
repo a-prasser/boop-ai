@@ -18,8 +18,26 @@ class SelfPlayBoopEnv(gym.Env):
 
     def step(self, action):
         if self.env.current_player_num == 0:
-            obs, reward, terminated, truncated, info = self.env.step(action)
-        else:
+            info = {}
+            reward = 0.0
+
+            if not self.env.is_legal(action):
+                info["invalid"] = True
+                reward = -0.1  # small penalty
+                legal_actions = self.env.legal_actions()
+                if legal_actions:
+                    action = random.choice(legal_actions)
+                else:
+                    return self.env.get_observation(), reward, True, False, {"reason": "no_legal_moves"}
+
+            # Always advance the game state
+            obs, env_reward, terminated, truncated, env_info = self.env.step(action)
+            
+            # If invalid, keep penalty; else use env reward
+            reward = reward if "invalid" in info else env_reward
+            info.update(env_info)
+
+        else: # opponent
             obs = self.env.observation
             retries = 0
             max_retries = 100
@@ -60,11 +78,13 @@ class OverfittingTracker(BaseCallback):
         super().__init__(verbose)
         self.entropies = []
         self.ep_len_mean = []
+        self.ep_rew_mean = []
 
     def _on_step(self) -> bool:
         ep_info = self.locals.get("infos", [{}])[0]
         if "episode" in ep_info:
             self.ep_len_mean.append(ep_info["episode"]["l"])
+            self.ep_rew_mean.append(ep_info["episode"]["r"])
         entropy = self.model.logger.name_to_value.get("train/entropy_loss")
         if entropy is not None:
             self.entropies.append(entropy)
@@ -72,7 +92,8 @@ class OverfittingTracker(BaseCallback):
 
 if __name__ == "__main__":
     
-    timesteps = 5000000
+    timesteps = 1000000
+    # 1000000 is the optimal
 
     callback = OverfittingTracker()
     env = SelfPlayBoopEnv(opponent_model=RandomOpponent())
@@ -95,5 +116,13 @@ if __name__ == "__main__":
     plt.title("Mean Episode Length")
     plt.xlabel("Episode")
     plt.ylabel("Mean Length")
+    plt.grid(True)
+    plt.show()
+
+    # Ep Reward
+    plt.plot(callback.ep_rew_mean)
+    plt.title("Mean Reward")
+    plt.xlabel("Episode")
+    plt.ylabel("Reward")
     plt.grid(True)
     plt.show()

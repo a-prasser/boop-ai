@@ -156,14 +156,14 @@ class BoopEnv(gym.Env):
 
         player = self.players[self.current_player_num]
 
-        if not self.is_legal(action):
+        """if not self.is_legal(action):
             legal_actions = self.legal_actions()
             if legal_actions:
                 action = random.choice(legal_actions)
             else:
                 # No legal actions exist: game ends (very rare edge case)
                 return self.observation.astype(np.float32), 0.0, True, False, {"reason": "no_legal_moves"}
-            
+        """    
         action_type, row, col, piece_type = action
 
         if action_type == 0:

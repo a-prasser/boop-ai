@@ -59,10 +59,10 @@ def evolve(generations=5, agents_per_gen=10, agents_to_keep=3, timesteps=100000)
     top_parents = None
     for gen in range(generations):
         print(f"\n🧬 Training Generation {gen}")
-        train_generation(gen, n_agents=agents_per_gen, parents=top_parents, timesteps=timesteps)
+        train_generation(gen, n_agents=agents_per_gen, parents=top_parents, timesteps=timesteps if gen==0 else timesteps/4)
         print(f"🏆 Running Tournament for Generation {gen}")
-        top_parents = tournament(gen, n_agents=agents_per_gen, games_per_match=5, number_best_agents=agents_to_keep)
+        top_parents = tournament(gen, n_agents=agents_per_gen, games_per_match=10, number_best_agents=agents_to_keep)
 
 if __name__ == "__main__":
-    evolve(generations=3, agents_per_gen=10, agents_to_keep=3, timesteps=10000)
+    evolve(generations=5, agents_per_gen=8, agents_to_keep=3, timesteps=800000)
 
