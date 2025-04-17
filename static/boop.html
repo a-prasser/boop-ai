@@ -158,26 +158,28 @@ def send_move(ev):
         document["status"].text = "Game not started"
         return
 
-    canvas = document["game-canvas"]
-    cell_size = 60
-    col = ev.offsetX // cell_size
-    row = ev.offsetY // cell_size
-    cell = state["board"][row][col]
     current_player = state["current_player"]
-    piece_type = int(document["piece-type"].value)
-
-    selected = state["board"][row][col]
-
-    # Determine if it's a removal action on own piece
-    is_own_piece = (cell[0] == 1 and current_player == 0) or (cell[1] == 1 and current_player == 1)
-    if is_own_piece:
-        is_cat = cell[2] == 1
-        action_type = 1
-        piece_type = 1 if is_cat else 0
+    if document[f"player-{current_player}-type"].value == "ai":
+        action = None
     else:
-        action_type = 0  # normal place
+      canvas = document["game-canvas"]
+      cell_size = 60
+      col = ev.offsetX // cell_size
+      row = ev.offsetY // cell_size
+      cell = state["board"][row][col]
+      piece_type = int(document["piece-type"].value)
+      selected = state["board"][row][col]
 
-    action = [action_type, row, col, piece_type]
+      # Determine if it's a removal action on own piece
+      is_own_piece = (cell[0] == 1 and current_player == 0) or (cell[1] == 1 and current_player == 1)
+      if is_own_piece:
+          is_cat = cell[2] == 1
+          action_type = 1
+          piece_type = 1 if is_cat else 0
+      else:
+          action_type = 0  # normal place
+
+      action = [action_type, row, col, piece_type]
 
     data = {"game_id": game_id, "action": action}
     url = f"{document['server-url'].value}/api/games/boop/move"

@@ -64,5 +64,5 @@ def evolve(generations=5, agents_per_gen=10, agents_to_keep=3, timesteps=100000)
         top_parents = tournament(gen, n_agents=agents_per_gen, games_per_match=5, number_best_agents=agents_to_keep)
 
 if __name__ == "__main__":
-    evolve(generations=3, agents_per_gen=10, agents_to_keep=3, timesteps=1000)
+    evolve(generations=3, agents_per_gen=10, agents_to_keep=3, timesteps=10000)
 

@@ -152,6 +152,8 @@ class BoopEnv(gym.Env):
 
     
     def step(self, action):
+        reward = 0.0
+
         player = self.players[self.current_player_num]
 
         if not self.is_legal(action):
@@ -182,13 +184,14 @@ class BoopEnv(gym.Env):
                         player.placed['kitten'] -= 1
                         self.board[r, c] = None
                         player.stock['cat'] += 1
+                        reward += 0.1
 
             winning = self.find_three_in_a_row(self.current_player_num, only_cats=True)
             if winning:
                 return self.observation.astype(np.float32), 1.0, True, False, {"winning_positions": winning}
 
             self.current_player_num = 1 - self.current_player_num
-            return self.observation.astype(np.float32), 0.0, False, False, {}
+            return self.observation.astype(np.float32), reward, False, False, {}
 
         elif action_type == 1:
             # Graduation/removal action (already legal)
@@ -202,7 +205,7 @@ class BoopEnv(gym.Env):
                 player.placed['cat'] -= 1
                 player.stock['cat'] += 1
 
-            return self.observation.astype(np.float32), 0.0, False, False, {"status": "Graduated or removed piece"}
+            return self.observation.astype(np.float32), 0.1, False, False, {"status": "Graduated or removed piece"}
 
 
     def render(self):

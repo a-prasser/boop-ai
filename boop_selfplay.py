@@ -59,12 +59,12 @@ class OverfittingTracker(BaseCallback):
     def __init__(self, verbose=1):
         super().__init__(verbose)
         self.entropies = []
-        self.rewards = []
+        self.ep_len_mean = []
 
     def _on_step(self) -> bool:
         ep_info = self.locals.get("infos", [{}])[0]
         if "episode" in ep_info:
-            self.rewards.append(ep_info["episode"]["r"])
+            self.ep_len_mean.append(ep_info["episode"]["l"])
         entropy = self.model.logger.name_to_value.get("train/entropy_loss")
         if entropy is not None:
             self.entropies.append(entropy)
@@ -72,16 +72,15 @@ class OverfittingTracker(BaseCallback):
 
 if __name__ == "__main__":
     
-    timesteps_list = [500000]
+    timesteps = 5000000
 
-    for timesteps in timesteps_list:
-        callback = OverfittingTracker()
-        env = SelfPlayBoopEnv(opponent_model=RandomOpponent())
-        model = PPO("MlpPolicy", env, verbose=1)
-        model.learn(total_timesteps=timesteps, callback=callback)
-        model.save("ppo_boop_v0")
+    callback = OverfittingTracker()
+    env = SelfPlayBoopEnv(opponent_model=RandomOpponent())
+    model = PPO("MlpPolicy", env, verbose=1)
+    model.learn(total_timesteps=timesteps, callback=callback)
+    model.save("ppo_boop_v0")
 
-        import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt
 
     # Entropy plot
     plt.plot(callback.entropies)
@@ -91,16 +90,10 @@ if __name__ == "__main__":
     plt.grid(True)
     plt.show()
 
-    # Reward plot (if your env fills out episode reward info)
-    #plt.plot(callback.rewards)
-    #plt.title("Episode Rewards")
-    #plt.xlabel("Episode")
-    #plt.ylabel("Reward")
-    #plt.grid(True)
-    #plt.show()
-
-        #opponent_model = PPO.load("ppo_boop_v0")
-        #env = SelfPlayBoopEnv(opponent_model=opponent_model)
-        #new_model = PPO("MlpPolicy", env, verbose=1)
-        #new_model.learn(total_timesteps=timesteps)
-        #new_model.save("ppo_boop_v1")
+    # Ep Len
+    plt.plot(callback.ep_len_mean)
+    plt.title("Mean Episode Length")
+    plt.xlabel("Episode")
+    plt.ylabel("Mean Length")
+    plt.grid(True)
+    plt.show()
