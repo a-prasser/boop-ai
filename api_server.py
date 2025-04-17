@@ -26,9 +26,9 @@ app = FastAPI()
 # === Models ===
 games = {
     "tictactoe": {'env': None,
-                  'model': "tictactoe_dqn" },
+                  'model': "tictactoe_dqn" }, # DQN.load
     "boop": {'env': BoopEnv,
-             'model': PPO.load("ppo_boop_v3") } # DQN.load("boop_dqn") },
+             'model': PPO.load("ppo_boop_v0") } # ppo_boop/gen_02/v8
     }
 
 # === Session store ===

@@ -2,6 +2,7 @@
 
 import gymnasium as gym
 import numpy as np
+import random
 
 class Player:
     def __init__(self, id, token):
@@ -151,11 +152,17 @@ class BoopEnv(gym.Env):
 
     
     def step(self, action):
-        action_type, row, col, piece_type = action
         player = self.players[self.current_player_num]
 
         if not self.is_legal(action):
-            return self.observation.astype(np.float32), -1.0, True, False, {}
+            legal_actions = self.legal_actions()
+            if legal_actions:
+                action = random.choice(legal_actions)
+            else:
+                # No legal actions exist: game ends (very rare edge case)
+                return self.observation.astype(np.float32), 0.0, True, False, {"reason": "no_legal_moves"}
+            
+        action_type, row, col, piece_type = action
 
         if action_type == 0:
             # Place piece

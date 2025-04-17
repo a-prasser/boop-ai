@@ -49,5 +49,5 @@ for i in range(len(models)):
             if winner == 0:
                 wins[f'model_{i}'] += 1
             else:
-                wins[f'model_{i}'] += 1
+                wins[f'model_{j}'] += 1
 print(wins)

@@ -2,6 +2,7 @@ from stable_baselines3 import PPO
 import gymnasium as gym
 import numpy as np
 from boop_env import BoopEnv
+import random
 
 class SelfPlayBoopEnv(gym.Env):
     def __init__(self, opponent_model=None):
@@ -18,28 +19,32 @@ class SelfPlayBoopEnv(gym.Env):
     def step(self, action):
         if self.env.current_player_num == 0:
             obs, reward, terminated, truncated, info = self.env.step(action)
-            # Player 0 acted; reward is already from their perspective — do not invert
         else:
-            # Player 1 (opponent) is about to act
             obs = self.env.observation
             retries = 0
-            max_retries = 200
+            max_retries = 100
             while retries < max_retries:
                 opponent_action, _ = self.opponent_model.predict(obs, deterministic=False)
                 if self.env.is_legal(opponent_action):
                     obs, reward, terminated, truncated, info = self.env.step(opponent_action)
-                    # Since player 1 acted, invert reward to reflect player 0's view
                     reward = -reward if reward != 0 else 0
                     break
                 retries += 1
 
             if retries >= max_retries:
-                # Opponent failed to act legally; player 0 wins by forfeit
-                obs = self.env.observation
-                reward = 1      # win for player 0
-                terminated = True
-                truncated = False
-                info = {"reason": "opponent_invalid_action"}
+                # Fallback: sample random legal move
+                legal_actions = self.env.legal_actions()
+                if legal_actions:
+                    fallback_action = random.choice(legal_actions)
+                    obs, reward, terminated, truncated, info = self.env.step(fallback_action)
+                    reward = -reward if reward != 0 else 0
+                    info["note"] = "opponent fallback move"
+                else:
+                    # If no legal moves exist at all (unlikely), end the game
+                    reward = 1
+                    terminated = True
+                    truncated = False
+                    info = {"reason": "opponent_no_legal_moves"}
 
         return obs, reward, terminated, truncated, info
 
@@ -48,25 +53,54 @@ class RandomOpponent:
     def predict(self, obs, deterministic=True):
         return SelfPlayBoopEnv().action_space.sample(), None
 
-env = SelfPlayBoopEnv(opponent_model=RandomOpponent())
-model = PPO("MlpPolicy", env, verbose=1)
-model.learn(total_timesteps=100000)
-model.save("ppo_boop_v0")
+from stable_baselines3.common.callbacks import BaseCallback
 
-opponent_model = PPO.load("ppo_boop_v0")
-env = SelfPlayBoopEnv(opponent_model=opponent_model)
-new_model = PPO("MlpPolicy", env, verbose=1)
-new_model.learn(total_timesteps=100000)
-new_model.save("ppo_boop_v1")
+class OverfittingTracker(BaseCallback):
+    def __init__(self, verbose=1):
+        super().__init__(verbose)
+        self.entropies = []
+        self.rewards = []
 
-opponent_model = PPO.load("ppo_boop_v1")
-env = SelfPlayBoopEnv(opponent_model=opponent_model)
-new_model = PPO("MlpPolicy", env, verbose=1)
-new_model.learn(total_timesteps=100000)
-new_model.save("ppo_boop_v2")
+    def _on_step(self) -> bool:
+        ep_info = self.locals.get("infos", [{}])[0]
+        if "episode" in ep_info:
+            self.rewards.append(ep_info["episode"]["r"])
+        entropy = self.model.logger.name_to_value.get("train/entropy_loss")
+        if entropy is not None:
+            self.entropies.append(entropy)
+        return True
 
-opponent_model = PPO.load("ppo_boop_v2")
-env = SelfPlayBoopEnv(opponent_model=opponent_model)
-new_model = PPO("MlpPolicy", env, verbose=1)
-new_model.learn(total_timesteps=100000)
-new_model.save("ppo_boop_v3")
+if __name__ == "__main__":
+    
+    timesteps_list = [500000]
+
+    for timesteps in timesteps_list:
+        callback = OverfittingTracker()
+        env = SelfPlayBoopEnv(opponent_model=RandomOpponent())
+        model = PPO("MlpPolicy", env, verbose=1)
+        model.learn(total_timesteps=timesteps, callback=callback)
+        model.save("ppo_boop_v0")
+
+        import matplotlib.pyplot as plt
+
+    # Entropy plot
+    plt.plot(callback.entropies)
+    plt.title("Entropy over Training")
+    plt.xlabel("Step")
+    plt.ylabel("Entropy")
+    plt.grid(True)
+    plt.show()
+
+    # Reward plot (if your env fills out episode reward info)
+    #plt.plot(callback.rewards)
+    #plt.title("Episode Rewards")
+    #plt.xlabel("Episode")
+    #plt.ylabel("Reward")
+    #plt.grid(True)
+    #plt.show()
+
+        #opponent_model = PPO.load("ppo_boop_v0")
+        #env = SelfPlayBoopEnv(opponent_model=opponent_model)
+        #new_model = PPO("MlpPolicy", env, verbose=1)
+        #new_model.learn(total_timesteps=timesteps)
+        #new_model.save("ppo_boop_v1")

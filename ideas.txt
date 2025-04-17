@@ -1,0 +1,9 @@
+use a CNN,
+really needs action masking - the tweak I gave about randomizing isn't good (in step, basic env)
+and maybe some intermediate rewarding for faster convergence? (when booping others, forming trios)
+
+
+Approach	Reward?	Action Taken?	Recommended?
+Penalize with -1 and end	-1	None	❌ Harsh, slows training
+Retry until legal	0	Legal fallback	✅ Best for SB3 now
+Action masking	—	Mask space	✅✅ Advanced but best
