@@ -1,9 +1,259 @@
+do frontend connect4 with trained model
+- plot probabilities over action space
+
 use a CNN,
 really needs action masking - the tweak I gave about randomizing isn't good (in step, basic env)
-and maybe some intermediate rewarding for faster convergence? (when booping others, forming trios)
 
 
 Approach	Reward?	Action Taken?	Recommended?
 Penalize with -1 and end	-1	None	❌ Harsh, slows training
 Retry until legal	0	Legal fallback	✅ Best for SB3 now
 Action masking	—	Mask space	✅✅ Advanced but best
+
+
+Great question — this is a classic challenge when designing reinforcement learning environments for board games. Board games often have **sparse, high-dimensional, and heavily constrained state and action spaces**. Here's how to handle that thoughtfully:
+
+---
+
+### 1. **Designing the State Space**
+
+**Avoid raw representations** if they’re sparse or inefficient. Instead, use a **compact and structured representation**:
+- Use `np.array` with shape like `(rows, cols, channels)` where each channel encodes something (e.g., own pieces, opponent pieces, valid placement).
+- For games like Boop, Connect4, Chess:
+  - 1st channel: current player’s pieces
+  - 2nd channel: opponent’s pieces
+  - 3rd channel: any special markers (e.g., power-ups, goals, valid moves if needed)
+- Normalize data if needed (e.g., use `0.0` and `1.0`, or integers for categories).
+
+> Avoid using raw strings or complex objects in the observation — flatten or encode them.
+
+---
+
+### 2. **Dealing with Invalid Actions**
+
+This is key. RL struggles when agents can frequently choose invalid actions, especially in discrete action spaces. You have two main strategies:
+
+#### A. **Mask Invalid Actions**
+- Provide a **mask** (e.g., a `np.array` of booleans) indicating which actions are legal.
+- Some libraries (e.g., SB3 with `ActionMasker` or custom wrappers) support this.
+- In your `step()` function:
+  - If an invalid action is chosen, return a penalty and `terminated = True`, or
+  - Replace it with a random valid action (less ideal during training, OK for robustness testing).
+
+#### B. **Reduce the Action Space**
+- Instead of one large fixed discrete space (like 6x6x5 = 180 actions), **encode only the legal moves as indices**, then:
+  - Keep a mapping: `legal_actions = [actual_action_1, actual_action_2, ...]`
+  - The agent chooses an index `i`, and you map it back: `action = legal_actions[i]`
+- This requires custom wrappers to train properly, but improves sample efficiency.
+
+---
+
+### 3. **Structured Action Representations**
+
+Instead of a single `Discrete(n)` space, consider using a **`MultiDiscrete`** or **`Dict` space**:
+```python
+spaces.Dict({
+    "action_type": spaces.Discrete(2),      # place, move, etc.
+    "row": spaces.Discrete(6),
+    "col": spaces.Discrete(6),
+    "piece_type": spaces.Discrete(5),
+})
+```
+This allows the policy to learn structure in actions (e.g., placing pieces vs moving them). But still, you need to **validate actions** and mask or penalize as needed.
+
+---
+
+### 4. **Sparse Reward Problem**
+
+In board games, rewards often come only at the end. To improve learning:
+- Use **reward shaping**: e.g., give intermediate rewards for capturing, progressing, controlling the board.
+- Use **self-play**: helps agents learn progressively by facing increasingly stronger versions of themselves.
+- Use **curriculum learning**: start with simpler subgames (e.g., smaller boards or fewer pieces).
+
+---
+
+### TL;DR
+| Problem                  | Solution |
+|--------------------------|----------|
+| Sparse state             | Use compact `(board, stock, player)` representations |
+| Invalid actions          | Mask them or reduce action space dynamically |
+| Large discrete space     | Use structured actions via `MultiDiscrete` or `Dict` |
+| Sparse reward            | Use reward shaping, self-play, or curriculum learning |
+
+---
+
+If you're using `Stable-Baselines3`, I can help you write a wrapper that handles action masking or dynamic legal actions too. Want to go in that direction?
+
+Perfect — let’s walk through how to set up **action masking** for a board game with a discrete action space using **Stable-Baselines3**. This will help the agent **only select legal actions**, and you'll still keep action validation in the `step()` function.
+
+---
+
+### Step 1: Define a Custom Wrapper with Action Mask
+
+First, make sure your environment exposes a `legal_actions()` method that returns a list of valid discrete action indices.
+
+Here’s a custom wrapper class:
+
+```python
+import gymnasium as gym
+import numpy as np
+from gymnasium import spaces
+
+class ActionMaskWrapper(gym.ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.observation_space = spaces.Dict({
+            "observation": env.observation_space,
+            "action_mask": spaces.Box(low=0, high=1, shape=(self.action_space.n,), dtype=np.uint8)
+        })
+
+    def observation(self, obs):
+        mask = np.zeros(self.action_space.n, dtype=np.uint8)
+        for action in self.env.legal_actions():
+            mask[action] = 1
+        return {
+            "observation": obs,
+            "action_mask": mask
+        }
+```
+
+This will modify your observation to look like:
+```python
+{
+    "observation": ...,    # your normal board state
+    "action_mask": [...]   # a 0/1 array showing valid actions
+}
+```
+
+---
+
+### Step 2: Custom Policy to Respect Mask (With SB3)
+
+Stable-Baselines3 **doesn’t support action masks out of the box**, but the [**SB3-Contrib**](https://github.com/Stable-Baselines-Team/stable-baselines3-contrib) library does!
+
+Install it:
+```bash
+pip install stable-baselines3[extra] sb3-contrib
+```
+
+Then use the `MaskedActorCriticPolicy` with `PPO`:
+
+```python
+from sb3_contrib.ppo_mask import MaskablePPO
+from sb3_contrib.common.maskable.utils import get_action_masks
+
+model = MaskablePPO("MultiInputPolicy", wrapped_env, verbose=1)
+model.learn(total_timesteps=100_000)
+```
+
+> Make sure the policy is `"MultiInputPolicy"` since your observations are now a dictionary.
+
+---
+
+### Step 3: Modify Your Environment’s `step()`
+
+Still include the `is_legal(action)` check inside `step()` for safety:
+```python
+def step(self, action):
+    if not self.is_legal(action):
+        # Either auto-correct, skip, or penalize
+        reward = -1
+        terminated = True
+        return self.get_observation(), reward, terminated, False, {"reason": "illegal_action"}
+    ...
+```
+
+---
+
+### Summary
+
+| Part                     | Purpose                                   |
+|--------------------------|-------------------------------------------|
+| `ActionMaskWrapper`      | Adds `action_mask` to observations        |
+| `MaskedActorCriticPolicy`| Learns only over legal actions            |
+| `step()` validation      | Ensures robustness against invalid actions |
+
+---
+
+Want me to help you adapt this to your exact `BoopEnv` or Connect4 environment? Just show me what your `step()` and `legal_actions()` look like.
+
+Excellent question — using a `Dict` observation space in Gym (like `spaces.Dict({...})`) gives you **structure and flexibility** that you don’t get with a flat vector or raw array. Here’s a breakdown of when and why you’d want it — especially in board games and RL with structured environments.
+
+---
+
+### **Advantages of `Dict` Observation Space**
+
+#### 1. **Semantic Separation of State Components**
+Instead of compressing everything into a single array (which loses meaning), you can split your observation like this:
+
+```python
+spaces.Dict({
+    "board": spaces.Box(...),        # board state
+    "stock": spaces.Box(...),        # player's remaining pieces
+    "current_player": spaces.Discrete(2),  # whose turn
+    "action_mask": spaces.Box(...),  # valid actions (optional)
+})
+```
+
+This makes each part of the state **explicit** and easier to:
+- **Interpret and debug**
+- **Preprocess independently**
+- **Feed into neural networks with modular input heads** (e.g., attention over board, MLP for stock)
+
+---
+
+#### 2. **Compatibility with Complex Game Mechanics**
+In games like **Boop, Chess, or Stratego**, you often have:
+- Hidden information (e.g. fog-of-war)
+- Inventories (piece types, cards, actions)
+- Turn-based flags
+
+Packing all that into a single array is messy and hard to maintain. A `Dict` allows natural encapsulation.
+
+---
+
+#### 3. **Integration with MultiInputPolicy in SB3**
+Stable-Baselines3 supports `Dict` observations with `"MultiInputPolicy"`. This lets your policy network handle different data types in parallel:
+- CNN for `board`
+- MLP for `stock` and `player turn`
+
+So it's **not just a cleaner API** — it actually enables **richer architectures** for learning.
+
+---
+
+### When to Prefer It
+
+| Use Case | Go with `Dict`? |
+|----------|-----------------|
+| Just a simple flat board | No |
+| You have different types of state info (board, stock, turn, mask...) | **Yes** |
+| You want better modularity or input-specific encodings | **Yes** |
+| You're using action masks with `sb3-contrib` | **Yes** |
+
+---
+
+### Example: Observation from `BoopEnv`
+
+```python
+{
+  "board": np.zeros((6, 6, 2)),           # 2 channels: own, opponent
+  "stock": np.array([3, 2, 1]),           # pieces left
+  "current_player": 0,
+  "action_mask": np.array([...])          # added by wrapper
+}
+```
+
+---
+
+### Summary
+
+| Benefit                      | Why it helps                             |
+|-----------------------------|------------------------------------------|
+| Clear structure              | Easier to interpret and debug            |
+| Modular input processing     | Custom network heads (board, stock...)   |
+| Action masking integration   | Cleanly fits with `sb3-contrib` PPO      |
+| Extensible                   | Add more state features later            |
+
+---
+
+Would you like me to sketch a network architecture or policy for handling such a `Dict` state with board + stock + current player?
