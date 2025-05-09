@@ -207,7 +207,6 @@ class GameBoard:
         """Update the move log display"""
         move_log_div = document["move-log"]
         move_log_div.clear()
-        # No need to reverse the list since we're already inserting at the beginning
         for entry in self.move_log:
             move_log_div <= entry
 
@@ -390,7 +389,6 @@ class GameBoard:
             "action": [ACTION_PLACE, row, col, piece_type]
         }))
         
-        # Don't update status here - let handle_move_complete handle it
 
     def handle_move_complete(self, req: ajax.Ajax, action_type: int, row: int, col: int, 
                            piece_type: int, board_before: List[List[Any]]) -> None:

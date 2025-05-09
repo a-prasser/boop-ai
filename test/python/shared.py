@@ -3,7 +3,7 @@ from browser import window, html
 # Board Constants
 BOARD_SIZE = 6
 CELL_SIZE = 60
-PIECE_PADDING = 5  # The padding used when drawing pieces (x + 5, y + 5 in the render code)
+PIECE_PADDING = 5 
 
 # Player Constants
 PLAYER_0 = 0
@@ -124,14 +124,13 @@ class GameMessages:
     WAITING_FOR_OPPONENT = "Waiting for opponent..."
     GAME_OVER = "Game Over! {} wins!"
 
-# Type Hints (simplified for Brython compatibility)
+# Type Hints 
 from typing import Dict, List, Optional, Union
 
-# Instead of TypedDict, use simple type comments or basic annotations
-GameStock = Dict[str, int]  # {'kitten': int, 'cat': int}
+GameStock = Dict[str, int]
 
 GameState = Dict[str, Union[List[List[List[int]]], int, Dict[str, GameStock], str]]
 
-GameAction = Dict[str, Union[int, int, int, int]]  # {action_type: int, row: int, col: int, piece_type: int}
+GameAction = Dict[str, Union[int, int, int, int]] 
 
 ServerResponse = Dict[str, Union[str, 'GameState', str, Optional[bool]]]
