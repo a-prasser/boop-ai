@@ -23,16 +23,16 @@ Key features:
 ## 🚀 Setup Instructions
 
 1. **Clone the repository**
-2. **Create a Virtual Environment**
-   python 3 -m venv venv
-   source venv/bin/activate
-4. **Install Dependencies**
-   bash dependencies.txt
-   * NOTE: Make sure the Python interpreter is version 3.11
-5. **Train the Model**
-   python3 boop_selfplay.py
-6. **Enjoy Playing the Game**
-   python3 api_server.py
+2. **Create a Virtual Environment**  
+   '''python 3 -m venv venv  
+   '''source venv/bin/activate  
+4. **Install Dependencies**  
+   '''bash dependencies.txt  
+   '''* NOTE: Make sure the Python interpreter is version 3.11  
+5. **Train the Model**  
+   '''python3 boop_selfplay.py  
+6. **Enjoy Playing the Game**  
+   '''python3 api_server.py  
 
 ## 👥 Project Collaboration
 
